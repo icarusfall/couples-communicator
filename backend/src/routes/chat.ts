@@ -44,10 +44,6 @@ router.post('/', async (req: Request, res: Response) => {
       system: systemPrompt,
       messages: messages as ChatMessage[],
       stream: true,
-    }, {
-      headers: {
-        'anthropic-beta': 'zero-data-retention-2025-04-01',
-      },
     });
 
     console.log('Anthropic response stream started');
