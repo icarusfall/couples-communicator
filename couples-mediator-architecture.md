@@ -67,7 +67,7 @@ Key properties:
 
 | Component | Technology | Hosting |
 |-----------|-----------|---------|
-| Frontend | Next.js (React) | Vercel |
+| Frontend | React + Vite (TypeScript) | Vercel |
 | Backend API | Node.js (Express or Fastify) | Railway |
 | Database | PostgreSQL | Railway (managed add-on) |
 | AI | Anthropic Claude API (with zero data retention header) | Anthropic |
@@ -346,44 +346,54 @@ If one partner is highly engaged and the other is not:
 
 ## 6. Project Structure
 
+The project uses **separate repositories** for frontend and backend:
+
+**Frontend** (`couples-communicator-frontend` — deployed to Vercel):
 ```
-couples-mediator/
-├── frontend/                  # Next.js app (deployed to Vercel)
+couples-communicator-frontend/
+├── index.html
+├── package.json
+├── tsconfig.json
+├── vite.config.ts
+├── .env.example               # VITE_API_URL
+├── src/
+│   ├── main.tsx               # Entry point, mounts <App />
+│   ├── App.tsx                # Router setup (React Router v7)
+│   ├── api.ts                 # Fetch wrapper (base URL, auth header)
+│   ├── auth.tsx               # AuthContext: token storage, login/logout/register
+│   ├── pages/
+│   │   ├── LoginPage.tsx
+│   │   ├── RegisterPage.tsx
+│   │   ├── PairingPage.tsx
+│   │   └── HomePage.tsx
+│   ├── components/
+│   │   ├── ProtectedRoute.tsx
+│   │   └── Layout.tsx
+│   └── index.css
+```
+
+**Backend** (`couples-communication` — deployed to Railway):
+```
+couples-communication/
+├── backend/
 │   ├── src/
-│   │   ├── app/               # Next.js app router pages
-│   │   ├── components/
-│   │   │   ├── Chat.tsx       # Main chat interface
-│   │   │   ├── SharedDoc.tsx  # Shared document viewer/editor
-│   │   │   ├── Onboarding.tsx # Pairing and setup flow
-│   │   │   └── QuickExit.tsx  # Emergency exit button
-│   │   ├── lib/
-│   │   │   ├── crypto.ts      # Web Crypto API helpers (PBKDF2, AES-GCM)
-│   │   │   ├── storage.ts     # Encrypted IndexedDB operations
-│   │   │   ├── api.ts         # Server API client
-│   │   │   └── types.ts       # Shared type definitions
-│   │   └── contexts/
-│   │       └── AuthContext.tsx # Authentication state
-│   └── package.json
-│
-├── backend/                   # Node.js API (deployed to Railway)
-│   ├── src/
-│   │   ├── server.ts          # Express/Fastify entry point
+│   │   ├── server.ts          # Express entry point
 │   │   ├── routes/
 │   │   │   ├── auth.ts        # Registration, login, session management
 │   │   │   ├── couple.ts      # Pairing code generation and redemption
-│   │   │   ├── chat.ts        # Proxy to Anthropic API
-│   │   │   └── sharedDoc.ts   # Encrypted shared document CRUD
+│   │   │   ├── chat.ts        # Proxy to Anthropic API (future)
+│   │   │   └── sharedDoc.ts   # Encrypted shared document CRUD (future)
 │   │   ├── middleware/
 │   │   │   └── auth.ts        # JWT verification
 │   │   ├── db/
 │   │   │   ├── schema.sql     # Database schema
 │   │   │   └── queries.ts     # Database query functions
 │   │   ├── prompts/
-│   │   │   └── system.ts      # System prompt construction
+│   │   │   └── system.ts      # System prompt construction (future)
 │   │   └── config.ts          # Environment variables, API keys
 │   └── package.json
 │
-└── README.md                  # Privacy architecture document (public)
+└── couples-mediator-architecture.md
 ```
 
 ---
@@ -398,10 +408,13 @@ Suggested build sequence for a weekend-by-weekend approach:
 - User registration and authentication (email + password)
 - Basic health check endpoint
 
-### Weekend 2: Pairing
-- Pairing code generation and redemption
-- Couple creation flow
-- Frontend: basic Next.js app on Vercel with login/register pages
+### Weekend 2: Pairing ✓
+- Pairing code generation and redemption (backend — completed Weekend 1)
+- Couple creation flow (backend — completed Weekend 1)
+- Frontend: React + Vite (TypeScript) app, separate repo, deployed to Vercel
+- Login/register pages with JWT auth
+- Couple pairing flow (create couple, share code, join couple)
+- Protected routes with Layout shell
 - Onboarding flow with pairing code entry
 
 ### Weekend 3: Core Chat
