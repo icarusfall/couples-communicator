@@ -361,14 +361,18 @@ couples-communicator-frontend/
 │   ├── App.tsx                # Router setup (React Router v7)
 │   ├── api.ts                 # Fetch wrapper (base URL, auth header)
 │   ├── auth.tsx               # AuthContext: token storage, login/logout/register
+│   ├── crypto.ts              # Client-side encryption (PBKDF2 + AES-256-GCM)
 │   ├── pages/
 │   │   ├── LoginPage.tsx
 │   │   ├── RegisterPage.tsx
 │   │   ├── PairingPage.tsx
-│   │   └── HomePage.tsx
+│   │   ├── HomePage.tsx
+│   │   └── ChatPage.tsx       # Chat + shared doc integration
 │   ├── components/
 │   │   ├── ProtectedRoute.tsx
-│   │   └── Layout.tsx
+│   │   ├── Layout.tsx
+│   │   ├── PassphraseModal.tsx # Encryption key derivation modal
+│   │   └── DocumentPanel.tsx   # Slide-in shared document panel
 │   └── index.css
 ```
 
@@ -381,15 +385,15 @@ couples-communication/
 │   │   ├── routes/
 │   │   │   ├── auth.ts        # Registration, login, session management
 │   │   │   ├── couple.ts      # Pairing code generation and redemption
-│   │   │   ├── chat.ts        # Proxy to Anthropic API (future)
-│   │   │   └── sharedDoc.ts   # Encrypted shared document CRUD (future)
+│   │   │   ├── chat.ts        # Proxy to Anthropic API (SSE streaming)
+│   │   │   └── shared-doc.ts  # Encrypted shared document CRUD
 │   │   ├── middleware/
 │   │   │   └── auth.ts        # JWT verification
 │   │   ├── db/
 │   │   │   ├── schema.sql     # Database schema
 │   │   │   └── queries.ts     # Database query functions
 │   │   ├── prompts/
-│   │   │   └── system.ts      # System prompt construction (future)
+│   │   │   └── system.ts      # System prompt construction
 │   │   └── config.ts          # Environment variables, API keys
 │   └── package.json
 │
@@ -402,11 +406,12 @@ couples-communication/
 
 Suggested build sequence for a weekend-by-weekend approach:
 
-### Weekend 1: Foundation
+### Weekend 1: Foundation ✓
 - Backend: Express server on Railway with PostgreSQL
 - Database schema
 - User registration and authentication (email + password)
 - Basic health check endpoint
+- Couple pairing endpoints (create, join, status)
 
 ### Weekend 2: Pairing ✓
 - Pairing code generation and redemption (backend — completed Weekend 1)
@@ -417,23 +422,22 @@ Suggested build sequence for a weekend-by-weekend approach:
 - Protected routes with Layout shell
 - Onboarding flow with pairing code entry
 
-### Weekend 3: Core Chat
-- Anthropic API proxy endpoint (with zero data retention)
-- System prompt (initial version)
-- Frontend: chat interface
-- Client-side conversation storage (IndexedDB, unencrypted initially for faster iteration)
+### Weekend 3: Core Chat ✓
+- Anthropic API proxy endpoint with SSE streaming (zero data retention header)
+- System prompt (initial version — communication coach, crisis/abuse detection, anti-attachment)
+- Frontend: chat interface with streaming responses
+- Conversation history kept in React state (no persistence yet — deferred to Weekend 5 with encryption)
 
-### Weekend 4: Shared Document
-- Shared document CRUD endpoints
-- Frontend: shared document viewer/editor
-- Bot integration: bot proposes updates, user approves
-- Fetching and displaying partner's shared document content in bot context
+### Weekend 4: Shared Document + Encryption ✓
+- Shared document CRUD endpoints (`shared-doc.ts` — GET + PUT)
+- Client-side encryption with Web Crypto API (`crypto.ts` — PBKDF2 + AES-256-GCM)
+- Passphrase modal for key derivation on chat page load
+- Slide-in document panel (proposal mode + view/edit mode)
+- Bot proposes doc updates via `<doc-proposal>` tags, stripped from chat display
+- Partner's shared document included in bot system prompt context
+- Couple salt exposed in `/couple/status` for key derivation
 
-### Weekend 5: Encryption
-- Client-side encryption for local conversation storage (Web Crypto API)
-- Client-side encryption for shared documents (couple key from passphrase)
-- Password-derived key for local storage
-- Encryption passphrase setup during pairing flow
+### Weekend 5: Conversation Persistence
 
 ### Weekend 6: Polish and Safety
 - Quick-exit button

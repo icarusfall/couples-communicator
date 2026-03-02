@@ -121,6 +121,7 @@ router.get('/status', async (req: Request, res: Response) => {
     res.json({
       paired: !!partner,
       coupleId: couple.id,
+      coupleSalt: couple.couple_salt.toString('base64'),
       partnerPseudonym: partner?.pseudonym ?? null,
       waitingForPartner: !partner,
     });

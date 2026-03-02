@@ -26,3 +26,6 @@ CREATE TABLE IF NOT EXISTS shared_documents (
     iv BYTEA NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_shared_documents_user_couple
+  ON shared_documents (user_id, couple_id);

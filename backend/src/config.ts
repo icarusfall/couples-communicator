@@ -13,5 +13,6 @@ export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
   databaseUrl: requireEnv('DATABASE_URL'),
   jwtSecret: requireEnv('JWT_SECRET'),
+  anthropicApiKey: requireEnv('ANTHROPIC_API_KEY'),
   nodeEnv: process.env.NODE_ENV || 'development',
 };

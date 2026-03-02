@@ -112,3 +112,41 @@ export async function getUserCouple(userId: string): Promise<{ couple: CoupleRow
 
   return { couple, partner };
 }
+
+// --- Shared document queries ---
+
+export interface SharedDocumentRow {
+  id: string;
+  user_id: string;
+  couple_id: string;
+  encrypted_content: Buffer;
+  iv: Buffer;
+  updated_at: Date;
+}
+
+export async function getSharedDocuments(coupleId: string): Promise<SharedDocumentRow[]> {
+  const result = await pool.query(
+    `SELECT * FROM shared_documents WHERE couple_id = $1`,
+    [coupleId]
+  );
+  return result.rows;
+}
+
+export async function upsertSharedDocument(
+  userId: string,
+  coupleId: string,
+  encryptedContent: Buffer,
+  iv: Buffer
+): Promise<SharedDocumentRow> {
+  const result = await pool.query(
+    `INSERT INTO shared_documents (user_id, couple_id, encrypted_content, iv)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (user_id, couple_id)
+     DO UPDATE SET encrypted_content = EXCLUDED.encrypted_content,
+                   iv = EXCLUDED.iv,
+                   updated_at = NOW()
+     RETURNING *`,
+    [userId, coupleId, encryptedContent, iv]
+  );
+  return result.rows[0];
+}
