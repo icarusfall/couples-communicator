@@ -33,70 +33,40 @@ router.post('/', async (req: Request, res: Response) => {
     const pseudonym = req.user!.pseudonym;
     const systemPrompt = buildSystemPrompt(pseudonym, myDocument, partnerDocument);
 
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.flushHeaders();
+    // First, make the Anthropic API call and collect the full response.
+    // Then stream it to the client. This avoids Railway/Fastly proxy issues
+    // with long-lived SSE connections during the upstream API call.
+    console.log('Calling Anthropic API, messages:', messages.length);
 
-    console.log('Starting Anthropic stream, messages:', messages.length);
-
-    let streamDone = false;
-
-    const stream = anthropic.messages.stream({
+    const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
       system: systemPrompt,
       messages: messages as ChatMessage[],
+      stream: true,
     }, {
       headers: {
         'anthropic-beta': 'zero-data-retention-2025-04-01',
       },
     });
 
-    stream.on('text', (text) => {
-      res.write(`data: ${JSON.stringify({ delta: text })}\n\n`);
-    });
+    console.log('Anthropic response stream started');
 
-    stream.on('error', (error) => {
-      console.error('Anthropic stream error:', error);
-      if (!streamDone) {
-        streamDone = true;
-        res.write(`data: ${JSON.stringify({ error: 'An error occurred while generating a response' })}\n\n`);
-        res.write('data: [DONE]\n\n');
-        res.end();
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    for await (const event of response) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        res.write(`data: ${JSON.stringify({ delta: event.delta.text })}\n\n`);
       }
-    });
+    }
 
-    stream.on('message', (message) => {
-      console.log('Anthropic stream completed, stop_reason:', message.stop_reason, 'usage:', message.usage);
-    });
-
-    stream.on('end', () => {
-      console.log('Stream ended');
-      if (!streamDone) {
-        streamDone = true;
-        res.write('data: [DONE]\n\n');
-        res.end();
-      }
-    });
-
-    // Use finalMessage to catch API-level errors
-    stream.finalMessage().catch((err) => {
-      console.error('Anthropic finalMessage error:', err?.message || err, 'status:', err?.status, 'error body:', JSON.stringify(err?.error));
-      if (!streamDone) {
-        streamDone = true;
-        res.write(`data: ${JSON.stringify({ error: 'An error occurred while generating a response' })}\n\n`);
-        res.write('data: [DONE]\n\n');
-        res.end();
-      }
-    });
-
-    req.on('close', () => {
-      if (!streamDone) {
-        stream.abort();
-      }
-    });
+    console.log('Stream complete');
+    res.write('data: [DONE]\n\n');
+    res.end();
   } catch (err) {
     console.error('Chat endpoint error:', err);
     if (!res.headersSent) {
