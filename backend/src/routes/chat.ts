@@ -39,6 +39,8 @@ router.post('/', async (req: Request, res: Response) => {
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
+    console.log('Starting Anthropic stream, system prompt length:', systemPrompt.length);
+
     const stream = anthropic.messages.stream({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
@@ -61,7 +63,12 @@ router.post('/', async (req: Request, res: Response) => {
       res.end();
     });
 
+    stream.on('message', (message) => {
+      console.log('Anthropic stream completed, stop_reason:', message.stop_reason, 'usage:', message.usage);
+    });
+
     stream.on('end', () => {
+      console.log('Stream ended');
       res.write('data: [DONE]\n\n');
       res.end();
     });
