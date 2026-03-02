@@ -495,7 +495,7 @@ The website serves two functions: explaining what the app is and how to use it, 
 - Who can see my conversations? (Only you. Not your partner, not us, not anyone.)
 - What if my partner doesn't use it? (It still works — you just don't get the shared document bridge.)
 - What if I want to delete everything? (You can, instantly, and delete means delete.)
-- What AI model does this use? (Claude by Anthropic, with zero data retention.)
+- What AI model does this use? (Claude by Anthropic. Conversations are proxied through the Anthropic API, which does not use API data for model training. Inputs and outputs are automatically deleted from Anthropic's servers within 30 days.)
 - Is this free? (Address whatever the pricing/cost model is.)
 - What if I'm in an unsafe relationship? (This tool isn't designed for that. Here are resources that can help: [domestic abuse helpline numbers].)
 - Can my partner see what I said to the bot? (No. Only the shared document you explicitly approve.)
