@@ -5,6 +5,7 @@ import { config } from './config';
 import { initDb } from './db';
 import { requireAuth } from './middleware/auth';
 import authRoutes from './routes/auth';
+import coupleRoutes from './routes/couple';
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.get('/health', (_req, res) => {
 
 // Routes
 app.use('/auth', authRoutes);
+app.use('/couple', requireAuth, coupleRoutes);
 
 // Protected test endpoint (useful for verifying JWT works)
 app.get('/me', requireAuth, (req, res) => {
