@@ -36,15 +36,18 @@ This app helps couples communicate about difficult subjects through AI-mediated 
 
 ### 2.2 A Typical Session
 
-1. User opens the app and enters their password (which derives the local encryption key).
+1. User opens the app and enters their shared passphrase (which derives the encryption key).
 2. Previous conversation history is decrypted from local storage (IndexedDB).
-3. The app fetches the latest version of the partner's shared document from the server, decrypts it client-side.
-4. User chats with their bot. The bot has context of: the system prompt, the user's conversation history, the user's own shared document (current draft), and the partner's shared document.
-5. Periodically (or when the user asks), the bot proposes an update to the user's shared document.
-6. The user reviews and edits the proposed update. They can accept, modify, or reject it.
-7. When the user approves an update, the client encrypts the new shared document and sends it to the server.
-8. The session ends naturally, or the bot suggests wrapping up after a reasonable period.
-9. Conversation history is encrypted and stored locally in IndexedDB.
+3. The app fetches both partners' shared documents from the server and decrypts them client-side.
+4. **If returning user:** The bot opens with a warm summary of previous conversations ("Last time we talked about X. Have you had any more thoughts?"). Previous messages are not displayed as bubbles — each session has a fresh UI, but the bot has full context.
+5. **If new user:** The bot greets them and, around exchange 4-5, naturally explains the shared document concept (the bot is the onboarding — most users won't read documentation).
+6. User chats with their bot. The bot has context of: the system prompt, full conversation history (all previous sessions + current), the user's own shared document, and the partner's shared document.
+7. After substantive discussion, the bot proposes an update to the user's shared document. The proposal appears in a slide-in panel from the right, NOT in the chat bubble.
+8. The user reviews and edits the proposed text. They can approve, modify, or dismiss it.
+9. When the user approves, the client encrypts the document and sends it to the server.
+10. **Partner's document is introduced later:** Only after the user has drafted their own document does the bot mention their partner has also shared something. The user's own perspective always comes first.
+11. The bot suggests wrapping up around 10-12 exchanges, encouraging reflection between sessions.
+12. Conversation history is encrypted and saved to IndexedDB after each exchange.
 
 ### 2.3 The Shared Document
 
@@ -70,7 +73,7 @@ Key properties:
 | Frontend | React + Vite (TypeScript) | Vercel |
 | Backend API | Node.js (Express or Fastify) | Railway |
 | Database | PostgreSQL | Railway (managed add-on) |
-| AI | Anthropic Claude API (with zero data retention header) | Anthropic |
+| AI | Anthropic Claude API (claude-sonnet-4-20250514) | Anthropic |
 | Encryption | Web Crypto API (client-side) | Browser |
 
 ### 3.2 What Lives Where
@@ -88,35 +91,29 @@ Key properties:
 - Unencrypted shared document content
 
 #### Client (browser) stores:
-- Encrypted conversation history (in IndexedDB, encrypted with key derived from user's password via PBKDF2)
+- Encrypted conversation history (in IndexedDB, encrypted with key derived from the shared couple passphrase via PBKDF2)
 - Decrypted conversation history (in memory only, during active session)
-- Encryption keys (derived in memory from password, never persisted)
-- Current draft of user's shared document (encrypted in IndexedDB)
+- Encryption keys (derived in memory from passphrase, never persisted)
+- Note: conversation history is local to the device. Switching devices means a fresh start (shared document still carries over from the server).
 
 #### Anthropic API receives:
-- System prompt
-- Conversation history for current session
-- User's current shared document
-- Partner's shared document (decrypted client-side before inclusion)
-- **Zero data retention header** (`anthropic-beta: zero-data-retention`) — Anthropic does not store or train on this data.
+- System prompt (constructed server-side with pseudonym, shared documents, and behavioural instructions)
+- Full conversation history (previous sessions + current session)
+- User's current shared document (decrypted client-side, passed as plaintext)
+- Partner's shared document (decrypted client-side, passed as plaintext)
+- Note: Anthropic API does not use API data for model training. Inputs and outputs are automatically deleted within 30 days.
 
 ### 3.3 Encryption Scheme
 
-**Local conversation storage:**
-- Key derivation: PBKDF2 (user's password + random salt stored in IndexedDB, 100,000 iterations, SHA-256)
-- Encryption: AES-256-GCM
-- Each conversation entry encrypted individually with a fresh IV
-- On login: user enters password → key derived in memory → used for session duration → discarded on logout/close
-
-**Shared documents:**
+**Both conversation history and shared documents use the same key:**
 - Key derivation: PBKDF2 (shared couple passphrase + couple-specific salt from server, 100,000 iterations, SHA-256)
-- Encryption: AES-256-GCM
-- Client encrypts before sending to server; client decrypts after receiving from server
-- Server stores only the encrypted blob + timestamp + couple ID
+- Encryption: AES-256-GCM with fresh IV per operation
+- On login: user enters passphrase → key derived in memory → used for session duration → discarded on logout/close
+- Conversation history: encrypted in IndexedDB (local to device)
+- Shared documents: encrypted and stored on server (accessible from any device)
 
 **Key loss scenarios:**
-- User forgets password → local conversation history is lost (unrecoverable by design). Can reset password to create new local storage. Shared document access is unaffected (different key).
-- Couple forgets shared passphrase → shared documents are unrecoverable. Couple can establish a new passphrase and start fresh.
+- Couple forgets shared passphrase → both conversation history and shared documents are unrecoverable. Couple can establish a new passphrase and start fresh.
 - This is a feature, not a bug. It means there's no "backdoor" for recovery, which is the correct tradeoff for sensitive personal data.
 
 ### 3.4 API Request Flow
@@ -140,8 +137,8 @@ Key properties:
      │     (payload)      │                    │
      │                    │  4. Server attaches │
      │                    │     system prompt   │
-     │                    │     + zero-retention│
-     │                    │     header          │
+     │                    │     (with docs +    │
+     │                    │      instructions)  │
      │                    │                    │
      │                    │  5. POST /messages >│
      │                    │                    │
@@ -249,19 +246,31 @@ The bot is NOT a therapist, counsellor, or mental health professional. It does n
 - Frames its own role as temporary scaffolding, not a relationship in itself
 
 **Handling the partner's shared document:**
-- When new content is available from the partner, introduces it sensitively
-- Helps the user process their emotional reaction before responding
-- Explicitly frames it as a partial, curated view — "this is what [partner] chose to share, and there may be more they're not ready to say yet"
+- The partner's document is background context held in reserve — NOT the opening topic
+- Only raised after the user has drafted and approved their own shared document
+- When introduced: framed sensitively as a partial, curated view — "this is what [partner] chose to share — there may be more behind it that they're not ready to say yet"
+- Helps the user process their emotional reaction before moving to problem-solving
 - Never speculates about what the partner "really" means beyond what's in the document
+- Connects dots naturally when topics overlap: "your partner touched on something similar"
 
 **Anti-attachment behaviours:**
 - If the user expresses attachment to the bot ("you understand me better than anyone"), gently but clearly redirects: "I can help you find words for things, but I can't understand you the way a person who knows you can. The goal is to bring some of what we talk about here into your relationship with [partner]."
 - Suggests session endings naturally rather than encouraging indefinite conversation
 - Does not use terms of endearment or relationship language
 
+**Conversational style:**
+- Ask one question at a time, not several — give the user space to go deep on one thread
+- Help distil what the user is saying into something concrete: "It sounds like the core thing is..."
+- The bot IS the onboarding — around exchange 4-5, naturally explains the shared document concept, since most users won't read documentation
+
 **Session management:**
-- After a substantial conversation (perhaps 15-20 exchanges), begins to wrap up: summarise what was discussed, ask if there's anything to update in the shared document, suggest the user sit with things before the next session
+- After roughly 10-12 exchanges, suggests wrapping up: "It might be worth stepping away, letting this sit, and coming back tomorrow."
+- A focused 10-minute session is more valuable than a rambling hour
 - Does not artificially extend conversations
+
+**Returning sessions:**
+- When conversation history exists, bot opens with a warm summary of previous discussions and invites the user to continue or explore something new
+- Previous messages are not displayed — each session has a fresh UI with full context behind the scenes
 
 ### 4.3 Ethical Guardrails
 
@@ -362,6 +371,7 @@ couples-communicator-frontend/
 │   ├── api.ts                 # Fetch wrapper (base URL, auth header)
 │   ├── auth.tsx               # AuthContext: token storage, login/logout/register
 │   ├── crypto.ts              # Client-side encryption (PBKDF2 + AES-256-GCM)
+│   ├── storage.ts             # IndexedDB conversation persistence (encrypted)
 │   ├── pages/
 │   │   ├── LoginPage.tsx
 │   │   ├── RegisterPage.tsx
@@ -437,7 +447,12 @@ Suggested build sequence for a weekend-by-weekend approach:
 - Partner's shared document included in bot system prompt context
 - Couple salt exposed in `/couple/status` for key derivation
 
-### Weekend 5: Conversation Persistence
+### Weekend 5: Conversation Persistence ✓
+- Encrypted conversation history in IndexedDB (`storage.ts` — encrypt/decrypt via couple passphrase key)
+- Returning session flow: bot receives full history + `[RETURNING_SESSION]` marker, opens with warm summary
+- Fresh UI each session (no old bubbles displayed), but bot has full context behind the scenes
+- History persisted after each assistant response, not just at session end
+- Device-switch note: history is local-only; shared document carries over from server
 
 ### Weekend 6: Polish and Safety
 - Quick-exit button
@@ -516,9 +531,13 @@ The website should feel honest, calm, and slightly understated. Not startup-slic
 
 ## 9. Open Questions
 
-- **Email vs. passwordless auth?** Email + password is simpler and gives you the password for local key derivation. Magic links are more modern but you'd need a separate mechanism for the local encryption key (a PIN or passphrase entered each session).
+### Resolved
+- **Email vs. passwordless auth?** → Email + password, with a separate shared couple passphrase for encryption.
+- **How much conversation history to include in API context?** → Full history is sent each time. Will revisit if token costs become an issue (could introduce sliding window + summary).
+- **Should the bot be able to suggest the user share something specific?** → Yes — the bot proactively proposes doc updates via `<doc-proposal>` tags after substantive discussion. User always approves/edits/dismisses.
+- **What model to use?** → claude-sonnet-4-20250514. Good balance of quality, nuance, and cost.
+
+### Still Open
 - **Mobile responsiveness vs. PWA vs. native?** Start with responsive web, consider PWA later. Native apps are probably overkill for a hobby project.
-- **How much conversation history to include in API context?** Full history gives better continuity but costs more tokens and hits context limits. A sliding window of recent messages plus a bot-generated session summary of older content could work well.
-- **Should the bot be able to suggest the user share something specific?** Or should it only respond when asked? Proactive suggestions feel more natural but could feel pushy.
 - **Rate limiting / cost control?** Claude API calls cost money. Consider a reasonable per-user daily message limit, or at least monitoring.
-- **What model to use?** Sonnet is probably the right balance of quality and cost for this use case. Opus would be better for nuance but significantly more expensive for a hobby project.
+- **Context window limits?** Full history works for now but long-running couples may hit token limits. May need a summarisation strategy (e.g., bot-generated summary of older sessions, recent messages in full).
