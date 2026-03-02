@@ -39,28 +39,20 @@ router.post('/', async (req: Request, res: Response) => {
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
-    console.log('Starting Anthropic stream, system prompt length:', systemPrompt.length, 'messages:', messages.length);
-    console.log('API key present:', !!config.anthropicApiKey, 'key prefix:', config.anthropicApiKey?.slice(0, 10));
+    console.log('Starting Anthropic stream, messages:', messages.length);
 
-    let stream;
-    try {
-      stream = anthropic.messages.stream({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages: messages as ChatMessage[],
-      }, {
-        headers: {
-          'anthropic-beta': 'zero-data-retention-2025-04-01',
-        },
-      });
-    } catch (streamCreateErr) {
-      console.error('Failed to create stream:', streamCreateErr);
-      res.write(`data: ${JSON.stringify({ error: 'Failed to initialize AI stream' })}\n\n`);
-      res.write('data: [DONE]\n\n');
-      res.end();
-      return;
-    }
+    let streamDone = false;
+
+    const stream = anthropic.messages.stream({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: messages as ChatMessage[],
+    }, {
+      headers: {
+        'anthropic-beta': 'zero-data-retention-2025-04-01',
+      },
+    });
 
     stream.on('text', (text) => {
       res.write(`data: ${JSON.stringify({ delta: text })}\n\n`);
@@ -68,9 +60,12 @@ router.post('/', async (req: Request, res: Response) => {
 
     stream.on('error', (error) => {
       console.error('Anthropic stream error:', error);
-      res.write(`data: ${JSON.stringify({ error: 'An error occurred while generating a response' })}\n\n`);
-      res.write('data: [DONE]\n\n');
-      res.end();
+      if (!streamDone) {
+        streamDone = true;
+        res.write(`data: ${JSON.stringify({ error: 'An error occurred while generating a response' })}\n\n`);
+        res.write('data: [DONE]\n\n');
+        res.end();
+      }
     });
 
     stream.on('message', (message) => {
@@ -79,12 +74,28 @@ router.post('/', async (req: Request, res: Response) => {
 
     stream.on('end', () => {
       console.log('Stream ended');
-      res.write('data: [DONE]\n\n');
-      res.end();
+      if (!streamDone) {
+        streamDone = true;
+        res.write('data: [DONE]\n\n');
+        res.end();
+      }
+    });
+
+    // Use finalMessage to catch API-level errors
+    stream.finalMessage().catch((err) => {
+      console.error('Anthropic finalMessage error:', err?.message || err, 'status:', err?.status, 'error body:', JSON.stringify(err?.error));
+      if (!streamDone) {
+        streamDone = true;
+        res.write(`data: ${JSON.stringify({ error: 'An error occurred while generating a response' })}\n\n`);
+        res.write('data: [DONE]\n\n');
+        res.end();
+      }
     });
 
     req.on('close', () => {
-      stream.abort();
+      if (!streamDone) {
+        stream.abort();
+      }
     });
   } catch (err) {
     console.error('Chat endpoint error:', err);
