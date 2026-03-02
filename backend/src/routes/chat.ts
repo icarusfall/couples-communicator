@@ -39,18 +39,28 @@ router.post('/', async (req: Request, res: Response) => {
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
-    console.log('Starting Anthropic stream, system prompt length:', systemPrompt.length);
+    console.log('Starting Anthropic stream, system prompt length:', systemPrompt.length, 'messages:', messages.length);
+    console.log('API key present:', !!config.anthropicApiKey, 'key prefix:', config.anthropicApiKey?.slice(0, 10));
 
-    const stream = anthropic.messages.stream({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: messages as ChatMessage[],
-    }, {
-      headers: {
-        'anthropic-beta': 'zero-data-retention-2025-04-01',
-      },
-    });
+    let stream;
+    try {
+      stream = anthropic.messages.stream({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: messages as ChatMessage[],
+      }, {
+        headers: {
+          'anthropic-beta': 'zero-data-retention-2025-04-01',
+        },
+      });
+    } catch (streamCreateErr) {
+      console.error('Failed to create stream:', streamCreateErr);
+      res.write(`data: ${JSON.stringify({ error: 'Failed to initialize AI stream' })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      res.end();
+      return;
+    }
 
     stream.on('text', (text) => {
       res.write(`data: ${JSON.stringify({ delta: text })}\n\n`);
