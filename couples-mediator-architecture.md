@@ -499,6 +499,7 @@ The website serves two functions: explaining what the app is and how to use it, 
 - Is this free? (Address whatever the pricing/cost model is.)
 - What if I'm in an unsafe relationship? (This tool isn't designed for that. Here are resources that can help: [domestic abuse helpline numbers].)
 - Can my partner see what I said to the bot? (No. Only the shared document you explicitly approve.)
+- What if I switch devices? (Your shared document is stored on the server and available on any device. Your conversation history is stored only on your current device for privacy — switching devices means starting a fresh conversation, but your coach will still have your shared document for context.)
 - What happens to my data if we break up? (Each partner controls their own data independently. You can delete your account and all associated data at any time.)
 
 **Open Source / Technical page:**
