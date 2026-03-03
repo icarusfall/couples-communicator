@@ -8,6 +8,7 @@ import authRoutes from './routes/auth';
 import coupleRoutes from './routes/couple';
 import chatRoutes from './routes/chat';
 import sharedDocRoutes from './routes/shared-doc';
+import accountRoutes from './routes/account';
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use('/auth', authRoutes);
 app.use('/couple', requireAuth, coupleRoutes);
 app.use('/chat', requireAuth, chatRoutes);
 app.use('/shared-doc', requireAuth, sharedDocRoutes);
+app.use('/account', requireAuth, accountRoutes);
 
 // Protected test endpoint (useful for verifying JWT works)
 app.get('/me', requireAuth, (req, res) => {

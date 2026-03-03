@@ -150,3 +150,50 @@ export async function upsertSharedDocument(
   );
   return result.rows[0];
 }
+
+export async function deleteSharedDocument(userId: string, coupleId: string): Promise<void> {
+  await pool.query(
+    `DELETE FROM shared_documents WHERE user_id = $1 AND couple_id = $2`,
+    [userId, coupleId]
+  );
+}
+
+export async function deleteUser(userId: string): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Get user's couple_id before deleting
+    const userResult = await client.query('SELECT couple_id FROM users WHERE id = $1', [userId]);
+    const coupleId = userResult.rows[0]?.couple_id;
+
+    // Delete user's shared documents
+    await client.query('DELETE FROM shared_documents WHERE user_id = $1', [userId]);
+
+    // Unlink user from couple
+    await client.query('UPDATE users SET couple_id = NULL WHERE id = $1', [userId]);
+
+    // Delete user
+    await client.query('DELETE FROM users WHERE id = $1', [userId]);
+
+    // If user was in a couple, check if partner remains
+    if (coupleId) {
+      const remaining = await client.query(
+        'SELECT id FROM users WHERE couple_id = $1',
+        [coupleId]
+      );
+      if (remaining.rows.length === 0) {
+        // No partner left — clean up couple and any orphaned docs
+        await client.query('DELETE FROM shared_documents WHERE couple_id = $1', [coupleId]);
+        await client.query('DELETE FROM couples WHERE id = $1', [coupleId]);
+      }
+    }
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}

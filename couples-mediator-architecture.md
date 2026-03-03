@@ -377,7 +377,8 @@ couples-communicator-frontend/
 │   │   ├── RegisterPage.tsx
 │   │   ├── PairingPage.tsx
 │   │   ├── HomePage.tsx
-│   │   └── ChatPage.tsx       # Chat + shared doc integration
+│   │   ├── ChatPage.tsx       # Chat + shared doc integration
+│   │   └── AccountPage.tsx    # Account settings: clear data, delete account
 │   ├── components/
 │   │   ├── ProtectedRoute.tsx
 │   │   ├── Layout.tsx
@@ -396,7 +397,8 @@ couples-communication/
 │   │   │   ├── auth.ts        # Registration, login, session management
 │   │   │   ├── couple.ts      # Pairing code generation and redemption
 │   │   │   ├── chat.ts        # Proxy to Anthropic API (SSE streaming)
-│   │   │   └── shared-doc.ts  # Encrypted shared document CRUD
+│   │   │   ├── shared-doc.ts  # Encrypted shared document CRUD
+│   │   │   └── account.ts     # Account deletion and data clearing
 │   │   ├── middleware/
 │   │   │   └── auth.ts        # JWT verification
 │   │   ├── db/
@@ -454,12 +456,16 @@ Suggested build sequence for a weekend-by-weekend approach:
 - History persisted after each assistant response, not just at session end
 - Device-switch note: history is local-only; shared document carries over from server
 
-### Weekend 6: Polish and Safety
-- Quick-exit button
-- Onboarding copy (limitations, disclaimers, domestic abuse resources)
-- System prompt refinement (anti-attachment, coercion detection, crisis resources)
-- Session management (natural endings, wrap-up prompts)
-- Delete account / delete data flows
+### Weekend 6: Polish and Safety ✓
+- Quick-exit button (header button → `window.location.replace("google.com")`, replaces history entry)
+- Onboarding disclaimers on RegisterPage (not-therapy, AI limitations, abuse resources) and HomePage (detailed info card with encryption note, abuse resources)
+- Account management page (`/account`) with three actions:
+  - Clear conversation history (local IndexedDB)
+  - Clear shared document (server-side delete)
+  - Delete account (server-side transaction: delete docs → unlink couple → delete user → clean up orphaned couple)
+- Delete account requires typing "DELETE" to confirm; all actions have confirmation modals
+- Backend: `DELETE /account/shared-doc` and `DELETE /account` endpoints, `deleteUser` uses a transaction with proper FK ordering
+- System prompt refinement (anti-attachment, coercion detection, crisis resources) — already covered in Weekend 4-5 prompt iterations
 
 ### Weekend 7: Security Review
 - Remove any request body logging
