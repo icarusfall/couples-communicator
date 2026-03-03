@@ -15,7 +15,7 @@ function hashEmail(email: string): string {
 }
 
 function signToken(userId: string, pseudonym: string): string {
-  return jwt.sign({ userId, pseudonym }, config.jwtSecret, { expiresIn: JWT_EXPIRY });
+  return jwt.sign({ userId, pseudonym }, config.jwtSecret, { expiresIn: JWT_EXPIRY, algorithm: 'HS256' });
 }
 
 router.post('/register', async (req: Request, res: Response) => {

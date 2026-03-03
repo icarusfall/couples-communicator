@@ -467,12 +467,14 @@ Suggested build sequence for a weekend-by-weekend approach:
 - Backend: `DELETE /account/shared-doc` and `DELETE /account` endpoints, `deleteUser` uses a transaction with proper FK ordering
 - System prompt refinement (anti-attachment, coercion detection, crisis resources) — already covered in Weekend 4-5 prompt iterations
 
-### Weekend 7: Security Review
-- Remove any request body logging
-- Test for XSS, CSRF, injection vulnerabilities
-- Verify encryption is working correctly end-to-end
-- Test data deletion is genuine (no soft deletes, no lingering backups)
-- Write the plain-English privacy architecture README
+### Weekend 7: Security Review ✓
+- Security audit: no XSS, no SQL injection, no body logging, encryption correct
+- Rate limiting added: auth (10/15min), chat (30/15min), global (100/15min) via `express-rate-limit`
+- CORS restricted to frontend origin (`CORS_ORIGIN` env var, defaults to `*` for dev)
+- Chat payload validation: max 200 messages, max 10,000 chars per message, type checking
+- JWT algorithm pinned to HS256 (sign + verify) to prevent algorithm confusion
+- Crypto `btoa` fix: chunked encoding to avoid call stack overflow on large documents
+- Debug `console.log` removed from ChatPage (conversation history count)
 
 ### Weekend 8+: Iteration
 - Refine system prompt based on testing

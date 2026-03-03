@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { config } from './config';
 import { initDb } from './db';
 import { requireAuth } from './middleware/auth';
@@ -13,8 +14,37 @@ import accountRoutes from './routes/account';
 const app = express();
 
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: config.corsOrigin,
+}));
 app.use(express.json({ limit: '1mb' }));
+
+// Rate limiters
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' },
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many authentication attempts, please try again later' },
+});
+
+const chatLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many chat requests, please try again later' },
+});
+
+app.use(globalLimiter);
 
 // Health check
 app.get('/health', (_req, res) => {
@@ -22,9 +52,9 @@ app.get('/health', (_req, res) => {
 });
 
 // Routes
-app.use('/auth', authRoutes);
+app.use('/auth', authLimiter, authRoutes);
 app.use('/couple', requireAuth, coupleRoutes);
-app.use('/chat', requireAuth, chatRoutes);
+app.use('/chat', requireAuth, chatLimiter, chatRoutes);
 app.use('/shared-doc', requireAuth, sharedDocRoutes);
 app.use('/account', requireAuth, accountRoutes);
 

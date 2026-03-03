@@ -23,9 +23,22 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
 
+    if (messages.length > 200) {
+      res.status(400).json({ error: 'Too many messages (max 200)' });
+      return;
+    }
+
     for (const msg of messages) {
-      if (!msg.role || !msg.content || !['user', 'assistant'].includes(msg.role)) {
+      if (!msg.role || !['user', 'assistant'].includes(msg.role)) {
         res.status(400).json({ error: 'Each message must have a valid role ("user" or "assistant") and content' });
+        return;
+      }
+      if (typeof msg.content !== 'string' || !msg.content) {
+        res.status(400).json({ error: 'Each message content must be a non-empty string' });
+        return;
+      }
+      if (msg.content.length > 10_000) {
+        res.status(400).json({ error: 'Individual message content must not exceed 10,000 characters' });
         return;
       }
     }
