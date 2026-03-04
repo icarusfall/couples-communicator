@@ -39,7 +39,7 @@ router.post('/create', async (req: Request, res: Response) => {
 
     const coupleSalt = crypto.randomBytes(32);
     const pairingCode = generatePairingCode();
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     const couple = await createCouple(coupleSalt, pairingCode, expiresAt);
     await updateUserCoupleId(userId, couple.id);
@@ -118,13 +118,17 @@ router.get('/status', async (req: Request, res: Response) => {
     }
 
     const { couple, partner } = result;
-    res.json({
+    const response: Record<string, unknown> = {
       paired: !!partner,
       coupleId: couple.id,
       coupleSalt: couple.couple_salt.toString('base64'),
       partnerPseudonym: partner?.pseudonym ?? null,
       waitingForPartner: !partner,
-    });
+    };
+    if (!partner && couple.pairing_code) {
+      response.pairingCode = couple.pairing_code;
+    }
+    res.json(response);
   } catch (err) {
     console.error('Couple status error:', err);
     res.status(500).json({ error: 'Internal server error' });

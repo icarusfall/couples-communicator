@@ -113,6 +113,11 @@ export async function getUserCouple(userId: string): Promise<{ couple: CoupleRow
   return { couple, partner };
 }
 
+export async function getUserCount(): Promise<number> {
+  const result = await pool.query(`SELECT COUNT(*)::int AS count FROM users`);
+  return result.rows[0].count;
+}
+
 // --- Shared document queries ---
 
 export interface SharedDocumentRow {

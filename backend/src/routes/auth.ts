@@ -3,12 +3,13 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { config } from '../config';
-import { createUser, findUserByEmailHash } from '../db/queries';
+import { createUser, findUserByEmailHash, getUserCount } from '../db/queries';
 
 const router = Router();
 
 const BCRYPT_ROUNDS = 12;
 const JWT_EXPIRY = '7d';
+const MAX_USERS = 1000;
 
 function hashEmail(email: string): string {
   return crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex');
@@ -34,6 +35,12 @@ router.post('/register', async (req: Request, res: Response) => {
 
     if (pseudonym.length > 50) {
       res.status(400).json({ error: 'Pseudonym must be 50 characters or fewer' });
+      return;
+    }
+
+    const userCount = await getUserCount();
+    if (userCount >= MAX_USERS) {
+      res.status(403).json({ error: "Registration is currently closed — we've reached capacity for our beta." });
       return;
     }
 
