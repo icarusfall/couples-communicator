@@ -16,7 +16,8 @@
     "express-rate-limit": "^8.2.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
-    "pg": "^8.19.0"
+    "pg": "^8.19.0",
+    "resend": "^6.9.3"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",

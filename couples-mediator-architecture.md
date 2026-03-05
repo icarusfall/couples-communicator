@@ -79,10 +79,11 @@ Key properties:
 ### 3.2 What Lives Where
 
 #### Server (Railway) stores:
-- User accounts (pseudonym, hashed password, email if provided)
+- User accounts (pseudonym, hashed password, encrypted email for password reset)
 - Couple pairing metadata (which two users are paired)
 - Encrypted shared documents (opaque blobs — server cannot decrypt)
 - Shared document timestamps (so clients know if there's a new version)
+- Password reset tokens (temporary, with 1-hour expiry)
 
 #### Server does NOT store:
 - Conversation history (ever)
@@ -193,9 +194,12 @@ Key properties:
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     pseudonym VARCHAR(50) NOT NULL,
-    email_hash VARCHAR(64),  -- hashed, for password reset only
+    email_hash VARCHAR(64),  -- SHA-256 hashed, for login lookup
+    encrypted_email TEXT,  -- AES-256-GCM encrypted, for password reset emails
     password_hash VARCHAR(255) NOT NULL,
     couple_id UUID REFERENCES couples(id),
+    password_reset_token VARCHAR(64) UNIQUE,
+    password_reset_expires_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -326,6 +330,7 @@ If one partner is highly engaged and the other is not:
 - Password hashed with bcrypt (cost factor 12+) server-side
 - Session tokens (JWT or similar) with reasonable expiry (e.g., 7 days)
 - No "remember me" for the local encryption password — must be entered each session (this is deliberate for the domestic abuse scenario: a partner picking up the phone sees encrypted blobs, not readable content)
+- **Password reset:** Email-based. Emails stored with server-side AES-256-GCM encryption (separate from couple encryption) so the server can decrypt to send reset emails. Reset tokens are single-use, expire after 1 hour. The forgot-password endpoint always returns a generic message to avoid leaking account existence. Emails sent via Resend (`noreply@buildabridge.app`).
 
 ### 5.3 Server-Side Security
 - The server operator (you) cannot read shared documents (encrypted with couple key, which the server never has)
@@ -365,6 +370,10 @@ couples-communicator-frontend/
 ├── tsconfig.json
 ├── vite.config.ts
 ├── .env.example               # VITE_API_URL
+├── public/
+│   ├── manifest.json          # PWA manifest
+│   ├── sw.js                  # Service worker
+│   └── icons/                 # PWA icons (SVG + 192/512 PNG)
 ├── src/
 │   ├── main.tsx               # Entry point, mounts <App />
 │   ├── App.tsx                # Router setup (React Router v7)
@@ -378,10 +387,17 @@ couples-communicator-frontend/
 │   │   ├── PairingPage.tsx
 │   │   ├── HomePage.tsx
 │   │   ├── ChatPage.tsx       # Chat + shared doc integration
-│   │   └── AccountPage.tsx    # Account settings: clear data, delete account
+│   │   ├── AccountPage.tsx    # Account settings: clear data, delete account
+│   │   ├── ForgotPasswordPage.tsx # Request password reset email
+│   │   ├── ResetPasswordPage.tsx  # Set new password via reset token
+│   │   ├── LandingPage.tsx    # Public landing page
+│   │   ├── HowItWorksPage.tsx # Public how-it-works walkthrough
+│   │   ├── PrivacyPage.tsx    # Public privacy explanation
+│   │   └── EthicsPage.tsx     # Public ethics & safety page
 │   ├── components/
 │   │   ├── ProtectedRoute.tsx
-│   │   ├── Layout.tsx
+│   │   ├── Layout.tsx         # Authenticated app layout (header + quick-exit)
+│   │   ├── PublicLayout.tsx   # Public pages layout (nav + footer)
 │   │   ├── PassphraseModal.tsx # Encryption key derivation modal
 │   │   └── DocumentPanel.tsx   # Slide-in shared document panel
 │   └── index.css
@@ -394,7 +410,7 @@ couples-communication/
 │   ├── src/
 │   │   ├── server.ts          # Express entry point
 │   │   ├── routes/
-│   │   │   ├── auth.ts        # Registration, login, session management
+│   │   │   ├── auth.ts        # Registration, login, password reset
 │   │   │   ├── couple.ts      # Pairing code generation and redemption
 │   │   │   ├── chat.ts        # Proxy to Anthropic API (SSE streaming)
 │   │   │   ├── shared-doc.ts  # Encrypted shared document CRUD
@@ -406,6 +422,8 @@ couples-communication/
 │   │   │   └── queries.ts     # Database query functions
 │   │   ├── prompts/
 │   │   │   └── system.ts      # System prompt construction
+│   │   ├── crypto.ts          # Server-side email encryption (AES-256-GCM)
+│   │   ├── email.ts           # Resend email service (password reset emails)
 │   │   └── config.ts          # Environment variables, API keys
 │   └── package.json
 │
@@ -476,11 +494,31 @@ Suggested build sequence for a weekend-by-weekend approach:
 - Crypto `btoa` fix: chunked encoding to avoid call stack overflow on large documents
 - Debug `console.log` removed from ChatPage (conversation history count)
 
-### Weekend 8+: Iteration
+### Weekend 8: Public Pages, UI Redesign, PWA ✓
+- Warm & earthy UI redesign: terracotta/sage/linen palette, serif headings (Georgia), softer corners (12px/16px)
+- Public layout with navigation header and footer (`PublicLayout.tsx`)
+- Landing page: hero, feature cards, pairing code callout
+- How It Works page: private conversations, shared document concept with example, session flow, async design
+- Privacy page: plain-English data architecture, encryption explained, AI model, deletion, no tracking
+- Ethics page: bot scope, crisis resources, abuse detection, anti-attachment, asymmetric engagement, sexual topics
+- PWA: manifest.json (standalone, terracotta theme), service worker (network-first navigation, cache-on-use assets), app icons (overlapping speech bubbles SVG + 192/512 PNG)
+- Back-to-home links on login/register pages
+- Public pages hosted within the Vercel deployment (not Squarespace)
+
+### Weekend 9: Password Reset ✓
+- Email-based password reset flow (forgot password → email → reset link → new password)
+- Server-side email encryption: AES-256-GCM with `EMAIL_ENCRYPTION_KEY` env var, so server can decrypt emails to send reset emails (separate from couple document encryption)
+- Email stored both as SHA-256 hash (for login lookup) and AES-256-GCM encrypted (for password reset emails)
+- Resend integration for sending emails from `noreply@buildabridge.app`
+- Reset tokens: `crypto.randomBytes(32)`, single-use, 1-hour expiry
+- Forgot-password endpoint returns generic message regardless of account existence (prevents user enumeration)
+- Frontend: ForgotPasswordPage, ResetPasswordPage, "Forgot your password?" link on login
+- New env vars: `EMAIL_ENCRYPTION_KEY` (32-byte hex), `RESEND_API_KEY`, `FRONTEND_URL`
+
+### Weekend 10+: Iteration
 - Refine system prompt based on testing
-- PWA support (installable, offline-capable)
-- UI/UX improvements
 - Open-source on GitHub
+- Context window management (summarisation for long-running couples)
 
 ---
 
@@ -545,7 +583,8 @@ The website should feel honest, calm, and slightly understated. Not startup-slic
 - **Should the bot be able to suggest the user share something specific?** → Yes — the bot proactively proposes doc updates via `<doc-proposal>` tags after substantive discussion. User always approves/edits/dismisses.
 - **What model to use?** → claude-sonnet-4-20250514. Good balance of quality, nuance, and cost.
 
+- **Mobile responsiveness vs. PWA vs. native?** → PWA with manifest + service worker. Installable from Chrome/Safari, runs standalone. Native not needed.
+- **Rate limiting / cost control?** → Rate limiting added in Weekend 7 (auth 10/15min, chat 30/15min, global 100/15min). Per-user daily limits not yet implemented.
+
 ### Still Open
-- **Mobile responsiveness vs. PWA vs. native?** Start with responsive web, consider PWA later. Native apps are probably overkill for a hobby project.
-- **Rate limiting / cost control?** Claude API calls cost money. Consider a reasonable per-user daily message limit, or at least monitoring.
 - **Context window limits?** Full history works for now but long-running couples may hit token limits. May need a summarisation strategy (e.g., bot-generated summary of older sessions, recent messages in full).

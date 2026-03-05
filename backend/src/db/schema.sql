@@ -29,3 +29,16 @@ CREATE TABLE IF NOT EXISTS shared_documents (
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_shared_documents_user_couple
   ON shared_documents (user_id, couple_id);
+
+-- Password reset columns (idempotent via IF NOT EXISTS workaround)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='encrypted_email') THEN
+    ALTER TABLE users ADD COLUMN encrypted_email TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='password_reset_token') THEN
+    ALTER TABLE users ADD COLUMN password_reset_token VARCHAR(64) UNIQUE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='password_reset_expires_at') THEN
+    ALTER TABLE users ADD COLUMN password_reset_expires_at TIMESTAMPTZ;
+  END IF;
+END $$;

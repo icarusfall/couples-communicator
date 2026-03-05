@@ -4,21 +4,25 @@ export interface UserRow {
   id: string;
   pseudonym: string;
   email_hash: string | null;
+  encrypted_email: string | null;
   password_hash: string;
   couple_id: string | null;
+  password_reset_token: string | null;
+  password_reset_expires_at: Date | null;
   created_at: Date;
 }
 
 export async function createUser(
   pseudonym: string,
   emailHash: string,
-  passwordHash: string
+  passwordHash: string,
+  encryptedEmail?: string
 ): Promise<UserRow> {
   const result = await pool.query(
-    `INSERT INTO users (pseudonym, email_hash, password_hash)
-     VALUES ($1, $2, $3)
+    `INSERT INTO users (pseudonym, email_hash, password_hash, encrypted_email)
+     VALUES ($1, $2, $3, $4)
      RETURNING *`,
-    [pseudonym, emailHash, passwordHash]
+    [pseudonym, emailHash, passwordHash, encryptedEmail || null]
   );
   return result.rows[0];
 }
@@ -160,6 +164,34 @@ export async function deleteSharedDocument(userId: string, coupleId: string): Pr
   await pool.query(
     `DELETE FROM shared_documents WHERE user_id = $1 AND couple_id = $2`,
     [userId, coupleId]
+  );
+}
+
+// --- Password reset queries ---
+
+export async function setPasswordResetToken(
+  userId: string,
+  token: string,
+  expiresAt: Date
+): Promise<void> {
+  await pool.query(
+    `UPDATE users SET password_reset_token = $1, password_reset_expires_at = $2 WHERE id = $3`,
+    [token, expiresAt, userId]
+  );
+}
+
+export async function findUserByResetToken(token: string): Promise<UserRow | null> {
+  const result = await pool.query(
+    `SELECT * FROM users WHERE password_reset_token = $1 AND password_reset_expires_at > NOW()`,
+    [token]
+  );
+  return result.rows[0] || null;
+}
+
+export async function updateUserPassword(userId: string, passwordHash: string): Promise<void> {
+  await pool.query(
+    `UPDATE users SET password_hash = $1, password_reset_token = NULL, password_reset_expires_at = NULL WHERE id = $2`,
+    [passwordHash, userId]
   );
 }
 

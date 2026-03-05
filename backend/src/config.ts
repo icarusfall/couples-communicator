@@ -16,4 +16,7 @@ export const config = {
   anthropicApiKey: requireEnv('ANTHROPIC_API_KEY'),
   nodeEnv: process.env.NODE_ENV || 'development',
   corsOrigin: process.env.CORS_ORIGIN || '*',
+  resendApiKey: process.env.RESEND_API_KEY || '',
+  emailEncryptionKey: requireEnv('EMAIL_ENCRYPTION_KEY'),
+  frontendUrl: requireEnv('FRONTEND_URL'),
 };
